@@ -1,0 +1,130 @@
+path_train='/content/drive/My Drive/Colab_data/Data_Mining/Data-Mining-Project/dataset/train.csv'
+path_test='/content/drive/My Drive/Colab_data/Data_Mining/Data-Mining-Project/dataset/test.csv'
+import pandas as pd
+class_names = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
+train = pd.read_csv(path_train)
+test = pd.read_csv(path_test)
+vocab = pd.concat([train['comment_text'],  test['comment_text']])
+clean_word_dict={'ａ': 'a',
+ '！': ' !',
+ '＋': ' +',
+ '－': ' -',
+ '．': ' .',
+ '０': '0',
+ '１': '1',
+ '２': '2',
+ '３': '3',
+ '４': '4',
+ '５': '5',
+ '６': '6',
+ '７': '7',
+ '８': '8',
+ '９': '9',
+ '＝': ' =',
+ '？': ' ?',
+ 'Ａ': 'a',
+ 'Ｂ': 'b',
+ 'Ｃ': 'c',
+ 'Ｄ': 'd',
+ 'Ｅ': 'e',
+ 'Ｆ': 'f',
+ 'Ｇ': 'g',
+ 'Ｈ': 'h',
+ 'Ｉ': 'i',
+ 'Ｊ': 'j',
+ 'Ｋ': 'k',
+ 'Ｌ': 'l',
+ 'Ｍ': 'm',
+ 'Ｎ': 'n',
+ 'Ｏ': 'o',
+ 'Ｐ': 'p',
+ 'Ｑ': 'q',
+ 'Ｒ': 'r',
+ 'Ｓ': 's',
+ 'Ｔ': 't',
+ 'Ｕ': 'u',
+ 'Ｖ': 'v',
+ 'Ｗ': 'w',
+ 'Ｘ': 'x',
+ 'Ｙ': 'y',
+ 'Ｚ': 'z',
+ 'ｂ': 'b',
+ 'ｃ': 'c',
+ 'ｄ': 'd',
+ 'ｅ': 'e',
+ 'ｆ': 'f',
+ 'ｇ': 'g',
+ 'ｈ': 'h',
+ 'ｉ': 'i',
+ 'ｊ': 'j',
+ 'ｋ': 'k',
+ 'ｌ': 'l',
+ 'ｍ': 'm',
+ 'ｎ': 'n',
+ 'ｏ': 'o',
+ 'ｐ': 'p',
+ 'ｑ': 'q',
+ 'ｒ': 'r',
+ 'ｓ': 's',
+ 'ｔ': 't',
+ 'ｕ': 'u',
+ 'ｖ': 'v',
+ 'ｗ': 'w',
+ 'ｘ': 'x',
+ 'ｙ': 'y',
+ 'ｚ': 'z'}
+import re
+import string
+def clean_dataset(word):
+    word = word.lower()
+    word = re.sub(r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)", "", word)
+    word = re.sub(r"(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}", "", word)
+    for typo, correct in clean_word_dict.items():
+        word = re.sub(typo, " " + correct + " ", word)
+    symbols = re.compile(f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])')
+    word=symbols.sub(r' \1 ', word)
+    return word
+
+train_comments = []
+test_comments = []
+for comment in train['comment_text']:
+    train_comments.append(clean_dataset(comment))
+    
+for comment in test['comment_text']:
+    test_comments.append(clean_dataset(comment))
+transform_function = TfidfVectorizer(
+    sublinear_tf=1,
+    strip_accents='unicode',
+    analyzer='word',
+    token_pattern=r'\w{1,}',
+    ngram_range=(1, 2),
+    max_features=10000)
+transform_function.fit(vocab)
+comments_train = transform_function.transform(train_comments)
+comments_test = transform_function.transform(test_comments)
+import numpy as np
+from sklearn.model_selection import cross_val_score
+from sklearn.ensemble import ExtraTreesClassifier
+
+losses = []
+predictions = []
+for class_name in class_names:
+    train_target = train[class_name]
+    classifier = ExtraTreesClassifier(n_estimators=30) 
+    score = np.mean(cross_val_score(classifier, comments_train, train_target, cv=2, scoring='roc_auc'))
+    print(class_name, score)  
+    classifier.fit(comments_train, train_target)
+    predictions.append(classifier.predict_proba(comments_test)[:, 1])
+labels=pd.read_csv('/content/drive/My Drive/Colab_data/Data_Mining/Data-Mining-Project/dataset/test_labels.csv')
+labels=np.array(labels.iloc[:,1:])
+sum_labels=np.sum(labels,axis=1)
+idx=sum_labels>=0
+preds_consider=np.array(predictions)[:,idx]
+labels_consider= labels[idx]
+preds_consider.shape,labels_consider.shape
+from sklearn.metrics import roc_auc_score
+scores=[]
+for i in range(6):
+  scores.append(roc_auc_score(labels_consider[:,i],preds_consider[i,:]))
+np.mean(scores)
+
